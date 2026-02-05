@@ -14,3 +14,5 @@ Replace the generated files with the ones listed in this document.
 ```bash
 npm run dev
 ```
+
+## This app was made by ChatGPT Codex
