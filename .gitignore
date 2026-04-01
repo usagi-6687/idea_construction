@@ -1,0 +1,12 @@
+# Rust build output
+src-tauri/target/
+
+# Node
+node_modules/
+
+# Vite build output
+dist/
+
+# OS
+.DS_Store
+Thumbs.db
