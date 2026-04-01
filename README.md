@@ -15,4 +15,4 @@ Replace the generated files with the ones listed in this document.
 npm run dev
 ```
 
-## This app was made by ChatGPT Codex
+## This app was made by claude code
