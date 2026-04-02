@@ -867,8 +867,10 @@ export default function App() {
           {EDGE_USAGES.map(u => {
             const c = EDGE_USAGE_CONFIG[u];
             return (
-              <button key={u} className={`btn small${selectedEdge.usage === u ? " active" : ""}`}
-                style={selectedEdge.usage === u ? { borderColor: c.stroke, background: c.stroke + "22" } : {}}
+              <button key={u} className="btn small"
+                style={selectedEdge.usage === u
+                  ? { borderColor: c.stroke, background: c.stroke + "22", color: "#1a202c", fontWeight: 600 }
+                  : {}}
                 onClick={() => dispatchWithHistory({ type: "updateEdge", id: selectedEdge.id, patch: { usage: u } })}
               >{c.label}</button>
             );

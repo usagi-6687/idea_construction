@@ -155,7 +155,7 @@ body {
   cursor: grab; user-select: none; touch-action: none;
   display: flex; flex-direction: column; gap: 0;
   min-width: 130px; max-width: 220px;
-  padding: 0 0 6px 0; overflow: hidden;
+  padding: 0 0 6px 0;
 }
 .network-node:hover { box-shadow: 0 3px 10px rgba(0,0,0,.14); }
 .network-node.selected { outline: 2.5px solid #1d4ed8; }
