@@ -17,11 +17,21 @@ type ProtocolAttribute = { protocol: string };
 export type NodeType = "server" | "loadbalancer" | "database" | "monitor" | "user" | "firewall" | "router";
 export type EdgeUsage = "business" | "management" | "monitoring" | "custom";
 
+// Phase 1: NIC data model
+// Phase 3 で React Flow の Handle と紐づける予定
+type NIC = {
+  id: string;
+  name: string;       // "eth0", "net0", "ens3" など
+  ipAddress: string;  // このNICに割り当てられたIPアドレス
+  // future: macAddress?, speed?, vlan?, description?
+};
+
 type NetworkNode = {
   id: string; displayName: string; hostname: string; ipAddress: string;
   role: string; note: string; nodeType: NodeType;
   x: number; y: number; w: number; h: number;
   segments: SegmentMembership[]; userTags: string[]; createdAt: number;
+  nics: NIC[];  // Phase 1追加: ノードが持つNIC一覧
 };
 
 type NetworkEdge = {
@@ -29,6 +39,8 @@ type NetworkEdge = {
   direction: "one-way" | "two-way";
   protocols: ProtocolAttribute[];
   usage: EdgeUsage; label: string;
+  sourceNicId?: string;  // Phase 1追加: 接続元NICのID（Phase 3で活用）
+  targetNicId?: string;  // Phase 1追加: 接続先NICのID（Phase 3で活用）
 };
 
 type NetworkArea = {
@@ -65,6 +77,10 @@ type Action =
   | { type: "toggleSelectionMode" }
   | { type: "toggleNodeSelection"; id: string }
   | { type: "clearSelection" }
+  // Phase 1: NIC操作 (UIはPhase 3で実装)
+  | { type: "addNic"; nodeId: string; name: string; ipAddress: string }
+  | { type: "updateNic"; nodeId: string; nicId: string; patch: Partial<Omit<NIC, "id">> }
+  | { type: "removeNic"; nodeId: string; nicId: string }
   | { type: "hydrate"; state: any }
   | { type: "restore"; state: State };
 
@@ -102,12 +118,12 @@ const DEFAULT_PROTOCOLS = ["SSH", "HTTP", "HTTPS", "PostgreSQL", "MySQL", "SNMP"
 function createSampleData(): Pick<State, "nodes" | "edges" | "areas"> {
   const now = Date.now();
   const nodes: NetworkNode[] = [
-    { id: "n-jump", displayName: "jump-01", hostname: "jump-01", ipAddress: "192.168.10.10", role: "踏み台サーバ", note: "", nodeType: "server",       x: 50,  y: 80,  w: 150, h: 72, segments: [{ segmentName: "MGMT" }], userTags: [], createdAt: now },
-    { id: "n-mon",  displayName: "mon-01",  hostname: "mon-01",  ipAddress: "192.168.10.20", role: "監視サーバ",  note: "", nodeType: "monitor",      x: 50,  y: 400, w: 150, h: 72, segments: [{ segmentName: "MGMT" }], userTags: [], createdAt: now },
-    { id: "n-lb",   displayName: "lb-01",   hostname: "lb-01",   ipAddress: "172.16.0.10",   role: "ロードバランサ", note: "", nodeType: "loadbalancer", x: 300, y: 80,  w: 150, h: 72, segments: [{ segmentName: "DMZ" }],  userTags: [], createdAt: now },
-    { id: "n-app1", displayName: "app-01",  hostname: "app-01",  ipAddress: "10.0.1.11",     role: "APサーバ",   note: "", nodeType: "server",       x: 300, y: 280, w: 150, h: 72, segments: [{ segmentName: "APP" }],  userTags: [], createdAt: now },
-    { id: "n-app2", displayName: "app-02",  hostname: "app-02",  ipAddress: "10.0.1.12",     role: "APサーバ",   note: "", nodeType: "server",       x: 300, y: 400, w: 150, h: 72, segments: [{ segmentName: "APP" }],  userTags: [], createdAt: now },
-    { id: "n-db",   displayName: "db-01",   hostname: "db-01",   ipAddress: "10.0.2.11",     role: "DBサーバ",   note: "", nodeType: "database",     x: 560, y: 340, w: 150, h: 72, segments: [{ segmentName: "DB" }],   userTags: [], createdAt: now },
+    { id: "n-jump", displayName: "jump-01", hostname: "jump-01", ipAddress: "192.168.10.10", role: "踏み台サーバ", note: "", nodeType: "server",       x: 50,  y: 80,  w: 150, h: 72, segments: [{ segmentName: "MGMT" }], userTags: [], nics: [], createdAt: now },
+    { id: "n-mon",  displayName: "mon-01",  hostname: "mon-01",  ipAddress: "192.168.10.20", role: "監視サーバ",  note: "", nodeType: "monitor",      x: 50,  y: 400, w: 150, h: 72, segments: [{ segmentName: "MGMT" }], userTags: [], nics: [], createdAt: now },
+    { id: "n-lb",   displayName: "lb-01",   hostname: "lb-01",   ipAddress: "172.16.0.10",   role: "ロードバランサ", note: "", nodeType: "loadbalancer", x: 300, y: 80,  w: 150, h: 72, segments: [{ segmentName: "DMZ" }],  userTags: [], nics: [], createdAt: now },
+    { id: "n-app1", displayName: "app-01",  hostname: "app-01",  ipAddress: "10.0.1.11",     role: "APサーバ",   note: "", nodeType: "server",       x: 300, y: 280, w: 150, h: 72, segments: [{ segmentName: "APP" }],  userTags: [], nics: [], createdAt: now },
+    { id: "n-app2", displayName: "app-02",  hostname: "app-02",  ipAddress: "10.0.1.12",     role: "APサーバ",   note: "", nodeType: "server",       x: 300, y: 400, w: 150, h: 72, segments: [{ segmentName: "APP" }],  userTags: [], nics: [], createdAt: now },
+    { id: "n-db",   displayName: "db-01",   hostname: "db-01",   ipAddress: "10.0.2.11",     role: "DBサーバ",   note: "", nodeType: "database",     x: 560, y: 340, w: 150, h: 72, segments: [{ segmentName: "DB" }],   userTags: [], nics: [], createdAt: now },
   ];
   const edges: NetworkEdge[] = [
     { id: "e1",  sourceId: "n-jump", targetId: "n-lb",   direction: "one-way", protocols: [{ protocol: "SSH" }],        usage: "management", label: "SSH/22" },
@@ -139,23 +155,60 @@ const initialState: State = {
 
 // ─── Reducer ──────────────────────────────────────────────────────────────────
 
+/** ノードの中心座標がエリア内に入っているかに基づいて nodeIds を更新する */
+function syncAreaMembership(areas: NetworkArea[], nodeId: string, nx: number, ny: number, nw: number, nh: number): NetworkArea[] {
+  const cx = nx + nw / 2, cy = ny + nh / 2;
+  return areas.map(a => {
+    const inArea = cx >= a.x && cx <= a.x + a.w && cy >= a.y && cy <= a.y + a.h;
+    const alreadyIn = a.nodeIds.includes(nodeId);
+    if (inArea === alreadyIn) return a;
+    return { ...a, nodeIds: inArea ? [...a.nodeIds, nodeId] : a.nodeIds.filter(id => id !== nodeId) };
+  });
+}
+
+/**
+ * エリア所属に基づいてノードのセグメント情報を同期する。
+ * - エリア名と一致するセグメント: エリア所属に連動して自動追加/削除
+ * - エリア名と一致しないセグメント: 手動追加とみなして保持
+ */
+function syncNodeSegments(node: NetworkNode, areas: NetworkArea[]): SegmentMembership[] {
+  const allAreaNames = new Set(areas.map(a => a.name));
+  const memberAreaNames = new Set(areas.filter(a => a.nodeIds.includes(node.id)).map(a => a.name));
+  const manualSegments = node.segments.filter(s => !allAreaNames.has(s.segmentName));
+  const areaSegments = [...memberAreaNames].map(name => ({ segmentName: name }));
+  return [...manualSegments, ...areaSegments];
+}
+
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "addNode": {
       const cfg = NODE_TYPE_CONFIG[action.nodeType];
+      const newNode: NetworkNode = {
+        id: crypto.randomUUID(), displayName: cfg.label,
+        hostname: "", ipAddress: "", role: "", note: "",
+        nodeType: action.nodeType,
+        x: action.x, y: action.y, w: 150, h: 72,
+        segments: [], userTags: [], nics: [], createdAt: Date.now(),
+      };
+      const updatedAreas = syncAreaMembership(state.areas, newNode.id, newNode.x, newNode.y, newNode.w, newNode.h);
+      const segs = syncNodeSegments(newNode, updatedAreas);
       return {
         ...state,
-        nodes: [...state.nodes, {
-          id: crypto.randomUUID(), displayName: cfg.label,
-          hostname: "", ipAddress: "", role: "", note: "",
-          nodeType: action.nodeType,
-          x: action.x, y: action.y, w: 150, h: 72,
-          segments: [], userTags: [], createdAt: Date.now(),
-        }],
+        nodes: [...state.nodes, { ...newNode, segments: segs }],
+        areas: updatedAreas,
       };
     }
-    case "moveNode":
-      return { ...state, nodes: state.nodes.map(n => n.id === action.id ? { ...n, x: action.x, y: action.y } : n) };
+    case "moveNode": {
+      const node = state.nodes.find(n => n.id === action.id);
+      if (!node) return state;
+      const updatedAreas = syncAreaMembership(state.areas, action.id, action.x, action.y, node.w, node.h);
+      const segs = syncNodeSegments({ ...node, x: action.x, y: action.y }, updatedAreas);
+      return {
+        ...state,
+        nodes: state.nodes.map(n => n.id === action.id ? { ...n, x: action.x, y: action.y, segments: segs } : n),
+        areas: updatedAreas,
+      };
+    }
     case "updateNode":
       return { ...state, nodes: state.nodes.map(n => n.id === action.id ? { ...n, ...action.patch } : n) };
     case "updateNodeSize":
@@ -224,10 +277,32 @@ function reducer(state: State, action: Action): State {
     }
     case "resizeArea":
       return { ...state, areas: state.areas.map(a => a.id === action.id ? { ...a, w: action.w, h: action.h } : a) };
-    case "deleteArea":
-      return { ...state, areas: state.areas.filter(a => a.id !== action.id) };
-    case "updateArea":
-      return { ...state, areas: state.areas.map(a => a.id === action.id ? { ...a, ...action.patch } : a) };
+    case "deleteArea": {
+      const remainingAreas = state.areas.filter(a => a.id !== action.id);
+      const deletedArea = state.areas.find(a => a.id === action.id);
+      const affectedIds = new Set(deletedArea?.nodeIds ?? []);
+      return {
+        ...state,
+        areas: remainingAreas,
+        nodes: state.nodes.map(n =>
+          affectedIds.has(n.id) ? { ...n, segments: syncNodeSegments(n, remainingAreas) } : n
+        ),
+      };
+    }
+    case "updateArea": {
+      const updatedAreas = state.areas.map(a => a.id === action.id ? { ...a, ...action.patch } : a);
+      // エリア名が変わった場合、所属ノードのセグメントを再同期
+      const oldArea = state.areas.find(a => a.id === action.id);
+      const nameChanged = oldArea && action.patch.name !== undefined && action.patch.name !== oldArea.name;
+      const affectedIds = new Set(nameChanged ? (oldArea?.nodeIds ?? []) : []);
+      return {
+        ...state,
+        areas: updatedAreas,
+        nodes: state.nodes.map(n =>
+          affectedIds.has(n.id) ? { ...n, segments: syncNodeSegments(n, updatedAreas) } : n
+        ),
+      };
+    }
     case "toggleSelectionMode": {
       const next = !state.isSelectionMode;
       return { ...state, isSelectionMode: next, selectedNodeIds: next ? state.selectedNodeIds : [] };
@@ -239,6 +314,15 @@ function reducer(state: State, action: Action): State {
     }
     case "clearSelection":
       return { ...state, selectedNodeIds: [] };
+    // Phase 1: NIC操作
+    case "addNic": {
+      const newNic: NIC = { id: crypto.randomUUID(), name: action.name, ipAddress: action.ipAddress };
+      return { ...state, nodes: state.nodes.map(n => n.id === action.nodeId ? { ...n, nics: [...n.nics, newNic] } : n) };
+    }
+    case "updateNic":
+      return { ...state, nodes: state.nodes.map(n => n.id === action.nodeId ? { ...n, nics: n.nics.map(nic => nic.id === action.nicId ? { ...nic, ...action.patch } : nic) } : n) };
+    case "removeNic":
+      return { ...state, nodes: state.nodes.map(n => n.id === action.nodeId ? { ...n, nics: n.nics.filter(nic => nic.id !== action.nicId) } : n) };
     case "restore":
       return { ...action.state, hydrated: true };
     case "hydrate": {
@@ -251,6 +335,7 @@ function reducer(state: State, action: Action): State {
         x: n.x ?? 0, y: n.y ?? 0, w: n.w ?? 150, h: n.h ?? 72,
         segments: n.segments ?? [],
         userTags: n.userTags ?? [],
+        nics: n.nics ?? [],  // Phase 1: 旧データは空配列で補完
         createdAt: n.createdAt ?? Date.now(),
       }));
       const edges: NetworkEdge[] = (s.edges ?? []).map((e: any) => ({
@@ -259,6 +344,8 @@ function reducer(state: State, action: Action): State {
         protocols: e.protocols ?? [],
         usage: (e.usage ?? "custom") as EdgeUsage,
         label: e.label ?? "",
+        sourceNicId: e.sourceNicId,  // Phase 1: なければ undefined のまま
+        targetNicId: e.targetNicId,
       }));
       const areas: NetworkArea[] = (s.areas ?? []).map((a: any) => ({
         id: a.id, name: a.name ?? "",
