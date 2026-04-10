@@ -150,6 +150,9 @@ npm run dev
       "x": 300, "y": 280, "w": 150, "h": 72,
       "segments": [{ "segmentName": "APP" }],
       "userTags": [],
+      "nics": [
+        { "id": "...", "name": "eth0", "ipAddress": "10.0.1.11" }
+      ],
       "createdAt": 1234567890000
     }
   ],
@@ -161,7 +164,9 @@ npm run dev
       "direction": "one-way",
       "protocols": [{ "protocol": "SSH" }],
       "usage": "management",
-      "label": "SSH/22"
+      "label": "SSH/22",
+      "sourceNicId": "...",
+      "targetNicId": "..."
     }
   ],
   "areas": [
@@ -176,7 +181,8 @@ npm run dev
 }
 ```
 
-> `segments` / `protocols` は将来的に構造化属性（NIC名・ポート番号・通信方向等）へ拡張予定のため、現時点でもオブジェクト配列形式で保持しています。
+> `segments` / `protocols` は将来的に構造化属性（NIC名・ポート番号・通信方向等）へ拡張予定のため、現時点でもオブジェクト配列形式で保持しています。  
+> `nics` / `sourceNicId` / `targetNicId` は Phase 1 で追加されたフィールドです。現バージョンでは操作UIがなく、Phase 3（React Flow 移行後）で有効化されます。旧データを読み込んだ場合は `nics: []` として扱われます。
 
 ---
 
@@ -189,24 +195,45 @@ npm run dev
 
 ---
 
-## 今後の拡張予定
+## 開発ロードマップ
 
-**Phase 2（予定）**
-- `SegmentMembership` の NIC/IP 拡張
-- `ProtocolAttribute` の port / direction / purpose 拡張
-- PNG エクスポート
-- React Flow への移行（接続線ルーティング改善）
+将来的に React Flow を導入し、以下のフェーズで機能拡張を予定しています。
+
+| フェーズ | ブランチ | 内容 | 状態 |
+|---------|---------|------|------|
+| Phase 1 | `NDE_phase1_nic_model_addition` | NICデータモデル追加 | **完了** |
+| Phase 2 | 未作成 | React Flow 移行（カスタムキャンバス廃止） | 予定 |
+| Phase 3 | 未作成 | NIC/ポートUI実装・ポート間エッジ接続 | 予定 |
+| Phase 4 | 未作成 | 非矩形エリア・エッジルーティング改善 | 予定 |
+
+**Phase 1 で追加したもの（`NDE_phase1_nic_model_addition`）**
+
+React Flow 移行後に NIC/ポートUIを実装することを見据え、データモデルのみ先行整備しました。画面の見た目に変化はありません。
+
+- `NIC` 型を新設（`id` / `name` / `ipAddress`）
+- `NetworkNode` に `nics: NIC[]` フィールドを追加
+- `NetworkEdge` に `sourceNicId?` / `targetNicId?` フィールドを追加（将来、エッジを特定ポートに紐づけるために使用）
+- Reducer に `addNic` / `updateNic` / `removeNic` アクションを追加（UIは Phase 3 で実装）
+- 旧データ互換：保存済みJSONに `nics` がない場合は `[]` で補完
 
 **将来構想**
 - ユーザータグを Edge にも付与
 - 複数ページ管理
 - テンプレート機能（三層Web、LAMP構成 等）
+- PNG エクスポート
 
 ---
 
 ## ブランチ構成
 
+```
+main                            # 旧ブレインストーミングアプリ版
+ └─ for_Network_visualise       # ネットワーク構成図エディタ版（ベース）
+     └─ NDE_phase1_nic_model_addition  # Phase 1: NICデータモデル追加（現在）
+```
+
 | ブランチ | 内容 |
 |---------|------|
 | `main` | 旧ブレインストーミングアプリ版 |
-| `for_Network_visualise` | 本ネットワーク構成図エディタ版（現在） |
+| `for_Network_visualise` | ネットワーク構成図エディタのベース |
+| `NDE_phase1_nic_model_addition` | Phase 1: NICデータモデル追加 |
